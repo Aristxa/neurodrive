@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NeuroDrive — Autonomous Driving Lab</title>
+  <meta name="description" content="Build a city, then watch a population of neural-network cars learn to drive it through neuro-evolution. Runs entirely in the browser." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233d8bfd'/%3E%3Cpath d='M9 22 16 7l7 15-7-4z' fill='white'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body data-mode="train">
+  <canvas id="world" aria-label="Simulation view"></canvas>
+
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#3d8bfd" /><path d="M9 22 16 7l7 15-7-4z" fill="#fff" /></svg>
+      <div>
+        <div class="brand-name">NeuroDrive</div>
+        <div class="brand-sub">Autonomous driving lab</div>
+      </div>
+    </div>
+    <nav class="modes" role="tablist" aria-label="Mode">
+      <button class="mode" role="tab" data-mode="build"><kbd>1</kbd>Build</button>
+      <button class="mode" role="tab" data-mode="train"><kbd>2</kbd>Train</button>
+      <button class="mode" role="tab" data-mode="drive"><kbd>3</kbd>Drive</button>
+    </nav>
+    <div class="top-right">
+      <span class="pill mono" id="fpsPill">— fps</span>
+      <button class="icon-btn" id="helpBtn" title="Shortcuts (H)" aria-label="Keyboard shortcuts">?</button>
+    </div>
+  </header>
+
+  <!-- ============================== LEFT PANEL ============================== -->
+  <aside class="panel panel-left">
+    <!-- BUILD -->
+    <section class="mode-panel" data-panel="build">
+      <h2>World builder</h2>
+      <p class="muted">Draw a road network. Roads, markings, buildings and trees are generated from the graph.</p>
+
+      <div class="field">
+        <label>Tool</label>
+        <div class="segmented" id="toolSeg">
+          <button data-tool="road" class="active">Roads <kbd>R</kbd></button>
+          <button data-tool="start">Start point <kbd>S</kbd></button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="presetSelect">Preset worlds</label>
+        <div class="row">
+          <select id="presetSelect"></select>
+          <button class="btn" id="loadPresetBtn">Load</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="roadWidth">Road width <output id="roadWidthOut"></output></label>
+        <input type="range" id="roadWidth" min="80" max="140" step="5" />
+      </div>
+
+      <div class="btn-grid">
+        <button class="btn" id="undoBtn">Undo <kbd>Ctrl Z</kbd></button>
+        <button class="btn danger" id="clearBtn">Clear</button>
+        <button class="btn" id="exportWorldBtn">Export</button>
+        <button class="btn" id="importWorldBtn">Import</button>
+      </div>
+
+      <div class="stat-row" id="worldStats"></div>
+
+      <ul class="howto">
+        <li><b>Click</b> empty space to add a node, chained from the selected one</li>
+        <li><b>Click a road</b> to insert a junction</li>
+        <li><b>Drag</b> a node to move it</li>
+        <li><b>Right-click</b> to deselect, or delete a node / road</li>
+        <li><b>Wheel</b> zoom · <b>Space + drag</b> or <b>middle-drag</b> pan</li>
+      </ul>
+    </section>
+
+    <!-- TRAIN -->
+    <section class="mode-panel" data-panel="train">
+      <h2>Neuro-evolution</h2>
+      <p class="muted">Each car is driven by its own neural network. The fittest survive, breed and mutate.</p>
+
+      <div class="transport">
+        <button class="btn primary" id="runBtn"><span id="runLabel">Pause</span> <kbd>Space</kbd></button>
+        <button class="btn" id="nextGenBtn" title="End this generation now (N)">Next gen</button>
+        <button class="btn" id="resetBtn" title="Start from random brains">Reset</button>
+      </div>
+
+      <div class="field">
+        <label>Simulation speed</label>
+        <div class="segmented" id="speedSeg">
+          <button data-speed="1" class="active">1×</button>
+          <button data-speed="3">3×</button>
+          <button data-speed="10">10×</button>
+          <button data-speed="30">30×</button>
+        </div>
+      </div>
+
+      <details open>
+        <summary>Population &amp; world</summary>
+        <div class="field"><label for="population">Population <output id="populationOut"></output></label><input type="range" id="population" min="20" max="500" step="10" /></div>
+        <div class="field"><label for="traffic">Traffic cars <output id="trafficOut"></output></label><input type="range" id="traffic" min="0" max="30" step="1" /></div>
+        <div class="field"><label for="genTime">Generation length <output id="genTimeOut"></output></label><input type="range" id="genTime" min="15" max="120" step="5" /></div>
+        <label class="check"><input type="checkbox" id="varyTraffic" /> New traffic scenario every generation</label>
+      </details>
+
+      <details>
+        <summary>Genetics</summary>
+        <div class="field"><label for="mutRate">Mutation rate <output id="mutRateOut"></output></label><input type="range" id="mutRate" min="0.01" max="0.5" step="0.01" /></div>
+        <div class="field"><label for="mutStrength">Mutation strength <output id="mutStrengthOut"></output></label><input type="range" id="mutStrength" min="0.05" max="1" step="0.05" /></div>
+        <p class="muted small">Elitism 4% · tournament selection · neuron-level crossover · gaussian mutation.</p>
+      </details>
+
+      <details open>
+        <summary>View</summary>
+        <label class="check"><input type="checkbox" id="showPopulation" /> Show whole population</label>
+        <label class="check"><input type="checkbox" id="showSensors" /> Show sensor rays</label>
+        <label class="check"><input type="checkbox" id="showPath" /> Show planned trajectory</label>
+        <label class="check"><input type="checkbox" id="followCam" /> Camera follows leader <kbd>F</kbd></label>
+      </details>
+
+      <details open>
+        <summary>Brain</summary>
+        <div class="btn-grid">
+          <button class="btn" id="saveBrainBtn">Save best</button>
+          <button class="btn" id="loadBrainBtn">Load saved</button>
+          <button class="btn" id="exportBrainBtn">Export</button>
+          <button class="btn" id="importBrainBtn">Import</button>
+        </div>
+        <button class="btn wide accent-outline" id="pretrainedBtn">Load pretrained brain</button>
+      </details>
+    </section>
+
+    <!-- DRIVE -->
+    <section class="mode-panel" data-panel="drive">
+      <h2>Test drive</h2>
+      <p class="muted">Drive yourself through traffic, then hand control to the best trained network.</p>
+      <button class="btn primary wide" id="autopilotBtn">Engage autopilot <kbd>P</kbd></button>
+      <button class="btn wide" id="respawnBtn">Respawn <kbd>R</kbd></button>
+      <div class="field"><label for="driveTraffic">Traffic cars <output id="driveTrafficOut"></output></label><input type="range" id="driveTraffic" min="0" max="30" step="1" /></div>
+      <label class="check"><input type="checkbox" id="driveSensors" /> Show sensor rays</label>
+      <ul class="howto">
+        <li><b>W / ↑</b> throttle · <b>S / ↓</b> brake &amp; reverse</li>
+        <li><b>A D / ← →</b> steer</li>
+        <li>Touching steering or brake disengages autopilot</li>
+      </ul>
+    </section>
+  </aside>
+
+  <!-- ============================== RIGHT PANEL ============================== -->
+  <aside class="panel panel-right">
+    <section class="card">
+      <div class="card-head"><h3>Neural network</h3><span class="muted mono small" id="netMeta"></span></div>
+      <canvas id="netCanvas" class="net-canvas"></canvas>
+    </section>
+    <section class="card train-only">
+      <div class="card-head">
+        <h3>Fitness per generation</h3>
+        <div class="legend">
+          <span><i style="background:#3d8bfd"></i>Best</span>
+          <span><i style="background:#c27a22"></i>Average</span>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chartCanvas" class="chart-canvas" role="img" aria-label="Line chart of best and average fitness per generation"></canvas>
+        <div class="tooltip" id="chartTooltip" hidden></div>
+      </div>
+    </section>
+    <section class="card train-only">
+      <div class="stats" id="trainStats">
+        <div><span>Generation</span><b id="stGen">1</b></div>
+        <div><span>Alive</span><b id="stAlive">—</b></div>
+        <div><span>Leader fitness</span><b id="stLeader">—</b></div>
+        <div><span>Best ever</span><b id="stBest">—</b></div>
+        <div><span>Road coverage</span><b id="stCoverage">—</b></div>
+        <div><span>Generation clock</span><b id="stClock">—</b></div>
+      </div>
+      <div class="progress"><div id="genProgress"></div></div>
+    </section>
+  </aside>
+
+  <!-- ============================== OVERLAYS ============================== -->
+  <div class="minimap-wrap"><canvas id="minimap"></canvas></div>
+
+  <div class="hud" id="hud">
+    <div class="hud-speed"><b id="hudSpeed">0</b><span>km/h</span></div>
+    <svg class="hud-wheel" id="hudWheel" viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="3" />
+      <path d="M4 20h9l4 6h6l4-6h9M20 26v10" fill="none" stroke="currentColor" stroke-width="3" />
+    </svg>
+    <div class="hud-bars">
+      <div class="bar"><span>THR</span><div><i id="hudThr"></i></div></div>
+      <div class="bar"><span>BRK</span><div><i id="hudBrk" class="brk"></i></div></div>
+    </div>
+    <div class="hud-badge" id="hudBadge">MANUAL</div>
+  </div>
+
+  <div class="hint" id="hint"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="modal" id="helpModal" hidden>
+    <div class="modal-card">
+      <div class="card-head"><h3>Keyboard shortcuts</h3><button class="icon-btn" id="helpClose" aria-label="Close">×</button></div>
+      <table>
+        <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>Build · Train · Drive</td></tr>
+        <tr><td><kbd>Space</kbd></td><td>Pause / resume training</td></tr>
+        <tr><td><kbd>N</kbd></td><td>Skip to next generation</td></tr>
+        <tr><td><kbd>+</kbd> <kbd>−</kbd></td><td>Simulation speed</td></tr>
+        <tr><td><kbd>F</kbd></td><td>Follow leader · click a car to follow it</td></tr>
+        <tr><td><kbd>V</kbd></td><td>Frame the whole world</td></tr>
+        <tr><td><kbd>R</kbd> <kbd>S</kbd></td><td>Road / start tool (build) · <kbd>R</kbd> respawn (drive)</td></tr>
+        <tr><td><kbd>Ctrl</kbd> <kbd>Z</kbd></td><td>Undo edit</td></tr>
+        <tr><td><kbd>Del</kbd> <kbd>Esc</kbd></td><td>Delete / deselect node</td></tr>
+        <tr><td><kbd>P</kbd></td><td>Toggle autopilot (drive)</td></tr>
+        <tr><td><kbd>H</kbd></td><td>This panel</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept=".json,application/json" hidden />
+
+  <!-- engine (DOM-free, shared with tools/train.js) -->
+  <script src="js/core/math.js"></script>
+  <script src="js/core/geometry.js"></script>
+  <script src="js/core/spatial-grid.js"></script>
+  <script src="js/core/graph.js"></script>
+  <script src="js/core/theme.js"></script>
+  <script src="js/world/items.js"></script>
+  <script src="js/world/world.js"></script>
+  <script src="js/world/presets.js"></script>
+  <script src="js/ai/network.js"></script>
+  <script src="js/ai/evolution.js"></script>
+  <script src="js/sim/sensor.js"></script>
+  <script src="js/sim/car.js"></script>
+  <script src="js/sim/traffic.js"></script>
+  <script src="js/sim/simulation.js"></script>
+  <script src="js/data/pretrained.js"></script>
+  <!-- presentation -->
+  <script src="js/render/viewport.js"></script>
+  <script src="js/render/network-view.js"></script>
+  <script src="js/render/fitness-chart.js"></script>
+  <script src="js/render/minimap.js"></script>
+  <script src="js/editor/graph-editor.js"></script>
+  <script src="js/ui/storage.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

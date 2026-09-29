@@ -1,0 +1,12 @@
+{
+  "name": "neurodrive",
+  "version": "1.0.0",
+  "description": "Build a city, then watch neural-network cars learn to drive it through neuro-evolution. Zero dependencies, runs in the browser.",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes http-server -p 8080 -c-1 .",
+    "train": "node tools/train.js",
+    "train:circuit": "node tools/train.js --preset circuit --generations 60"
+  },
+  "license": "MIT"
+}
