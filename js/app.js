@@ -57,7 +57,12 @@ class App {
 
     const saved = AppStorage.load('world');
     this.loadWorldData(saved && saved.graph ? saved : this._presetData('downtown'), { recordUndo: false, silent: true });
-    this.sim = this._createSimulation();
+    // First impression: start from the best brain on hand (saved, else pretrained), so the cars
+    // drive as soon as the page opens. Random brains mostly crash at the start line, which reads as
+    // "broken" to a first-time visitor. Reset still starts over from random brains.
+    const startBrain = this._savedBrain() || this._pretrained();
+    this.sim = this._createSimulation(startBrain);
+    this.seeded = !!startBrain;
 
     this._bindUI();
     this._bindInput();
@@ -369,7 +374,8 @@ class App {
         if (!f.alive) f.draw(ctx, 'crashed');
       }
       this.world.drawItems(ctx, vp.center, view);
-      if (this.mode !== 'build') this.editor.drawStart(ctx, vp.scale);
+      // The start marker is only drawn in Build mode (by the editor): painted over the cars in Train and
+      // Drive, it looked like a frozen car at the start line.
     }
 
     const minimapData = this.mode === 'train'
@@ -500,7 +506,9 @@ class App {
         ? 'Press F to follow the leader again'
         : this.sim.evolution.generation <= 2 && !this.sim.evolution.bestEver && !this.seeded
           ? 'Generation 1 is random brains — watch them improve, or load the pretrained brain'
-          : 'Click any car to follow it · drag to look around · scroll to zoom';
+          : this.seeded && this.sim.evolution.generation <= 2
+            ? 'Started from the trained brain · press Reset to watch them learn from scratch'
+            : 'Click any car to follow it · drag to look around · scroll to zoom';
     } else {
       hint = this.drive?.car.autopilot ? 'Autopilot engaged — press any driving key (W A S D / arrows) to take over' : 'Drive with W A S D / arrows · press P to engage autopilot';
     }
