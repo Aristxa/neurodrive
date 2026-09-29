@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#16191e" />
   <title>NeuroDrive — Autonomous Driving Lab</title>
   <meta name="description" content="Build a city, then watch a population of neural-network cars learn to drive it through neuro-evolution. Runs entirely in the browser." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233d8bfd'/%3E%3Cpath d='M9 22 16 7l7 15-7-4z' fill='white'/%3E%3C/svg%3E" />
@@ -30,6 +31,9 @@
     <div class="top-right">
       <span class="pill mono" id="fpsPill">— fps</span>
       <button class="icon-btn" id="helpBtn" title="Shortcuts (H)" aria-label="Keyboard shortcuts">?</button>
+      <button class="icon-btn" id="panelToggle" aria-label="Show controls">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+      </button>
     </div>
   </header>
 
@@ -44,7 +48,8 @@
         <label>Tool</label>
         <div class="segmented" id="toolSeg">
           <button data-tool="road" class="active">Roads <kbd>R</kbd></button>
-          <button data-tool="start">Start point <kbd>S</kbd></button>
+          <button data-tool="start">Start <kbd>S</kbd></button>
+          <button data-tool="erase">Erase <kbd>E</kbd></button>
         </div>
       </div>
 
@@ -197,6 +202,27 @@
       <div class="bar"><span>BRK</span><div><i id="hudBrk" class="brk"></i></div></div>
     </div>
     <div class="hud-badge" id="hudBadge">MANUAL</div>
+    <div class="hud-gen mono" id="hudGen"></div>
+  </div>
+
+  <!-- touch driving controls (phones / tablets, Drive mode) -->
+  <div class="touch-drive" id="touchDrive">
+    <div class="td-steer">
+      <button data-touch="left" aria-label="Steer left">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7" /></svg>
+      </button>
+      <button data-touch="right" aria-label="Steer right">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+      </button>
+    </div>
+    <div class="td-mid">
+      <button id="tdAutopilot" class="td-pill">AUTOPILOT</button>
+      <button id="tdRespawn" class="td-pill" aria-label="Respawn">↻ RESPAWN</button>
+    </div>
+    <div class="td-pedals">
+      <button data-touch="down" class="brake" aria-label="Brake / reverse">BRAKE</button>
+      <button data-touch="up" class="gas" aria-label="Accelerate">GAS</button>
+    </div>
   </div>
 
   <div class="hint" id="hint"></div>

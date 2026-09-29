@@ -21,6 +21,10 @@
 
 html, body {
   margin: 0;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   height: 100%;
   overflow: hidden;
   background: var(--bg);
@@ -453,13 +457,6 @@ body[data-mode='build'] .hint { bottom: 22px; }
   .panel-right { max-height: calc(100vh - 92px - 170px); }
   .minimap-wrap { height: 158px; }
 }
-@media (max-width: 860px) {
-  .topbar { left: 8px; right: 8px; top: 8px; gap: 8px; }
-  .brand-sub, .pill, .mode kbd { display: none; }
-  .brand > div { display: none; }
-  .panel-left { left: 8px; right: 8px; width: auto; top: auto; bottom: 8px; max-height: 42vh; }
-  .panel-right, .minimap-wrap, .hint { display: none; }
-  .hud { bottom: auto; top: 74px; }
 }
 
 @media (max-height: 820px) and (min-width: 861px) {
@@ -467,4 +464,101 @@ body[data-mode='build'] .hint { bottom: 22px; }
   .chart-canvas { height: 110px; }
   .minimap-wrap { height: 130px; }
   .panel-right { max-height: calc(100vh - 92px - 142px); }
+}
+
+/* ------------------------------------------------------------- HUD extras */
+.hud-gen { font-size: 11px; color: var(--text-2); white-space: nowrap; }
+.hud-gen:empty { display: none; }
+#panelToggle { display: none; }
+button { touch-action: manipulation; }
+
+/* ------------------------------------------------------------- touch driving */
+.touch-drive {
+  position: fixed;
+  left: max(14px, env(safe-area-inset-left));
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: none;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  z-index: 8;
+  pointer-events: none;
+}
+.touch-drive button {
+  pointer-events: auto;
+  touch-action: none;
+  border: 1px solid var(--line-strong);
+  background: rgba(21, 24, 29, 0.78);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.06s, background 0.1s, border-color 0.1s;
+}
+.td-steer, .td-pedals { display: flex; gap: 12px; align-items: flex-end; }
+.td-steer button {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.td-steer svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.td-pedals button { font: 700 12px var(--mono); letter-spacing: 0.08em; border-radius: 18px; }
+.td-pedals .brake { width: 74px; height: 74px; color: #ff8fa1; }
+.td-pedals .gas { width: 80px; height: 118px; color: #9cc5ff; }
+.touch-drive button.pressed { transform: scale(0.94); background: var(--accent); border-color: var(--accent); color: #fff; }
+.td-pedals .brake.pressed { background: var(--danger); border-color: var(--danger); }
+.td-mid {
+  position: absolute;
+  left: 50%;
+  bottom: 132px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+}
+.td-pill { font: 700 11px var(--mono); letter-spacing: 0.08em; padding: 10px 14px; border-radius: 999px; white-space: nowrap; }
+.td-pill.engaged { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 20px rgba(61, 139, 253, 0.5); }
+
+@media (pointer: coarse) {
+  body[data-mode='drive'] .touch-drive { display: flex; }
+  body[data-mode='drive'] .hint { display: none; }
+}
+
+/* ------------------------------------------------------------- phones */
+@media (max-width: 860px), (pointer: coarse) and (max-height: 560px) {
+  .topbar { left: 8px; right: 8px; top: max(8px, env(safe-area-inset-top)); gap: 8px; height: 52px; padding: 0 8px; }
+  .brand > div, .pill, .mode kbd, #helpBtn { display: none; }
+  .mode { padding: 7px 12px; }
+  #panelToggle { display: grid; place-items: center; }
+  body.panel-open #panelToggle { background: var(--accent); border-color: var(--accent); }
+
+  .panel-left {
+    display: none;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    top: auto;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    max-height: 64vh;
+    max-height: 64dvh;
+    z-index: 25;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+  }
+  body.panel-open .panel-left { display: block; }
+  .panel-right, .minimap-wrap, .hint { display: none; }
+
+  body[data-mode='drive'] .touch-drive { display: flex; }
+  .hud { bottom: auto; top: 70px; gap: 10px; padding: 7px 12px; border-radius: 12px; }
+  .hud-speed { min-width: 0; }
+  .hud-speed b { font-size: 22px; }
+  .hud-wheel, .hud-bars { display: none; }
+}
+
+@media (max-width: 380px) {
+  .td-steer button { width: 64px; height: 64px; }
+  .td-pedals .brake { width: 62px; height: 62px; }
+  .td-pedals .gas { width: 68px; height: 104px; }
+  .td-pill { padding: 8px 10px; font-size: 10px; }
 }

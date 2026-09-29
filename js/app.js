@@ -35,6 +35,8 @@ class App {
 
     this.keys = {};
     this.driveInput = { up: false, down: false, left: false, right: false };
+    this.touchInput = { up: false, down: false, left: false, right: false };
+    this.isTouch = window.matchMedia('(pointer: coarse)').matches;
     this.mode = null;
     this.running = true;
     this.simSpeed = 1;
@@ -225,10 +227,11 @@ class App {
   _stepDrive(dt) {
     const d = this.drive;
     const k = this.keys;
-    this.driveInput.up = !!(k.KeyW || k.ArrowUp);
-    this.driveInput.down = !!(k.KeyS || k.ArrowDown);
-    this.driveInput.left = !!(k.KeyA || k.ArrowLeft);
-    this.driveInput.right = !!(k.KeyD || k.ArrowRight);
+    const t = this.touchInput;
+    this.driveInput.up = !!(k.KeyW || k.ArrowUp || t.up);
+    this.driveInput.down = !!(k.KeyS || k.ArrowDown || t.down);
+    this.driveInput.left = !!(k.KeyA || k.ArrowLeft || t.left);
+    this.driveInput.right = !!(k.KeyD || k.ArrowRight || t.right);
     for (const t of d.traffic) t.update(dt, d.obstacles);
     const wasAlive = d.car.alive;
     d.car.update(dt, d.env);
@@ -252,8 +255,12 @@ class App {
     } else {
       this._syncSimWorld();
       if (!this.world.start) this.toast('Build a road network first', true);
-      if (mode === 'drive') this._startDrive();
+      if (mode === 'drive') {
+        this._startDrive();
+        if (this.isTouch && this.world.start) this.toast('Hold GAS to drive · tap AUTOPILOT to let the AI drive');
+      }
     }
+    document.body.classList.remove('panel-open');
     this._updateHint(true);
   }
 
@@ -446,6 +453,7 @@ class App {
     else if (f.autopilot) { text = 'AUTOPILOT'; cls = 'on'; }
     badge.textContent = text;
     badge.className = `hud-badge ${cls}`;
+    $('#hudGen').textContent = this.mode === 'train' ? `GEN ${this.sim.evolution.generation} · ${this.sim.alive}/${this.sim.cars.length}` : '';
 
     if (this.mode === 'train') {
       const sim = this.sim, evo = sim.evolution;
@@ -480,9 +488,11 @@ class App {
   _updateHint(force) {
     let hint = '';
     if (this.mode === 'build') {
-      hint = this.editor.tool === 'start'
-        ? 'Click a lane to set where cars spawn — the arrow follows the lane direction'
-        : 'Click to lay roads · click a road to add a junction · right-click deletes · press 2 to train';
+      hint = {
+        start: 'Click a lane to set where cars spawn — the arrow follows the lane direction',
+        erase: 'Click a node or road to delete it',
+        road: 'Click to lay roads · click a road to add a junction · right-click deletes · press 2 to train',
+      }[this.editor.tool];
     } else if (!this.world.start) {
       hint = 'No roads yet — press 1 to open the builder';
     } else if (this.mode === 'train') {
@@ -539,6 +549,7 @@ class App {
     const btn = $('#autopilotBtn');
     btn.classList.toggle('engaged', on);
     btn.firstChild.textContent = on ? 'Disengage autopilot ' : 'Engage autopilot ';
+    $('#tdAutopilot').classList.toggle('engaged', on);
   }
 
   setSpeed(speed) {
@@ -672,6 +683,32 @@ class App {
     this._bindRange('driveTraffic', 'driveTraffic', (v) => v, () => this._startDrive());
     this._bindCheck('driveSensors', 'driveSensors');
 
+    // ---- touch driving controls (multi-touch: each button tracks its own pointer)
+    $$('[data-touch]').forEach((btn) => {
+      const key = btn.dataset.touch;
+      const release = () => {
+        this.touchInput[key] = false;
+        btn.classList.remove('pressed');
+      };
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        this.touchInput[key] = true;
+        btn.classList.add('pressed');
+        if (this.drive?.car.autopilot) this.toggleAutopilot(false);
+        try {
+          btn.setPointerCapture(e.pointerId); // keeps the press alive if the finger slides off
+        } catch { /* pointer already gone */ }
+        if (navigator.vibrate) navigator.vibrate(8);
+      });
+      btn.addEventListener('pointerup', release);
+      btn.addEventListener('pointercancel', release);
+      btn.addEventListener('lostpointercapture', release);
+      btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    });
+    $('#tdAutopilot').addEventListener('click', () => this.toggleAutopilot());
+    $('#tdRespawn').addEventListener('click', () => this._startDrive());
+    $('#panelToggle').addEventListener('click', () => document.body.classList.toggle('panel-open'));
+
     // ---- chrome
     $('#helpBtn').addEventListener('click', () => this.toggleHelp());
     $('#helpClose').addEventListener('click', () => this.toggleHelp(false));
@@ -709,21 +746,64 @@ class App {
     const c = this.canvas;
     c.addEventListener('contextmenu', (e) => e.preventDefault());
 
+    // Active pointers, for two-finger pinch-zoom / pan on touch screens.
+    this._pointers = new Map();
+    const pinchState = () => {
+      const [a, b] = [...this._pointers.values()];
+      return { mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, dist: Math.hypot(a.x - b.x, a.y - b.y) || 1 };
+    };
+
     c.addEventListener('pointerdown', (e) => {
-      c.setPointerCapture(e.pointerId);
+      try {
+        c.setPointerCapture(e.pointerId);
+      } catch { /* pointer already gone */ }
+      this._pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const touch = e.pointerType === 'touch';
+      this.editor.touch = touch;
+
+      if (this._pointers.size === 2) {
+        // second finger: abandon any one-finger action and start pinching
+        if (this.editor.dragging) this.editor.pointerUp();
+        this._pan = null;
+        this._pinch = pinchState();
+        return;
+      }
+      if (this._pointers.size > 2) return;
+
       const pan = e.button === 1 || (e.button === 0 && (this.keys.Space || this.mode !== 'build'));
       if (pan) {
         e.preventDefault();
         this._pan = { x: e.clientX, y: e.clientY, moved: false, click: e.button === 0 && this.mode !== 'build' };
         return;
       }
-      if (this.mode === 'build') this.editor.pointerDown(e.button, this._worldPos(e));
+      if (this.mode !== 'build') return;
+
+      const p = this._worldPos(e);
+      if (touch && e.button === 0) {
+        // On touch, a finger on a node grabs it immediately (drag to move); anywhere else
+        // it's a tap (edit on release) or a one-finger pan if it moves.
+        this.editor._updateHover(p);
+        if (!this.editor.hovered || this.editor.tool !== 'road') {
+          this._pan = { x: e.clientX, y: e.clientY, moved: false, click: false, tap: p };
+          return;
+        }
+      }
+      this.editor.pointerDown(e.button, p);
     });
 
     c.addEventListener('pointermove', (e) => {
+      if (this._pointers.has(e.pointerId)) this._pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this._pinch) {
+        if (this._pointers.size < 2) return;
+        const next = pinchState(), r = c.getBoundingClientRect();
+        this.viewport.zoomAt(next.mx - r.left, next.my - r.top, next.dist / this._pinch.dist);
+        this.viewport.panBy(next.mx - this._pinch.mx, next.my - this._pinch.my);
+        this._pinch = next;
+        return;
+      }
       if (this._pan) {
         const dx = e.clientX - this._pan.x, dy = e.clientY - this._pan.y;
-        if (!this._pan.moved && Math.hypot(dx, dy) > 4) {
+        if (!this._pan.moved && Math.hypot(dx, dy) > (e.pointerType === 'touch' ? 10 : 4)) {
           this._pan.moved = true;
           c.classList.add('panning');
           if (this.mode !== 'build' && this.settings.followCam) this._setFollow(false);
@@ -739,8 +819,17 @@ class App {
     });
 
     const up = (e) => {
+      this._pointers.delete(e.pointerId);
+      if (this._pinch) {
+        if (this._pointers.size < 2) this._pinch = null;
+        return; // lifting fingers after a pinch never counts as a tap
+      }
       if (this._pan) {
         if (!this._pan.moved && this._pan.click) this._pickCar(this._worldPos(e));
+        if (!this._pan.moved && this._pan.tap && e.type === 'pointerup') {
+          this.editor.pointerDown(0, this._pan.tap);
+          this.editor.pointerUp();
+        }
         this._pan = null;
         c.classList.remove('panning');
         return;
@@ -806,6 +895,7 @@ class App {
         if (!this.editor.undo()) this.toast('Nothing to undo');
       } else if (code === 'KeyR' && !ctrl) this.setTool('road');
       else if (code === 'KeyS' && !ctrl) this.setTool('start');
+      else if (code === 'KeyE' && !ctrl) this.setTool('erase');
       else if (code === 'Escape') this.editor.selected = null;
       else if (code === 'Delete' || code === 'Backspace') this.editor.deleteSelected();
       return;

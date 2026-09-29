@@ -5,6 +5,7 @@
  *   Road tool:  click = add node (chained from the selected one) · click a road = T-junction
  *               drag = move node · right-click = deselect / delete node / delete road
  *   Start tool: click a lane to place the spawn point (direction follows the lane)
+ *   Erase tool: click a node or road to delete it (the touch-friendly way to delete)
  */
 class GraphEditor {
   constructor(app) {
@@ -16,6 +17,7 @@ class GraphEditor {
     this.dragging = false;
     this.moved = false;
     this.mouse = null;
+    this.touch = false; // set by the app per pointer event; fingers get bigger hit targets
     this.undoStack = [];
   }
 
@@ -41,7 +43,7 @@ class GraphEditor {
   // ------------------------------------------------------------------ input
 
   _thresholds() {
-    return { point: 14 / this.app.viewport.scale, road: this.app.world.options.roadWidth / 2 };
+    return { point: (this.touch ? 28 : 14) / this.app.viewport.scale, road: this.app.world.options.roadWidth / 2 };
   }
 
   _updateHover(p) {
@@ -82,10 +84,12 @@ class GraphEditor {
       return;
     }
 
-    if (button === 2) {
-      if (this.selected) {
+    const erase = this.tool === 'erase' && button === 0;
+    if (button === 2 || erase) {
+      if (this.selected && !erase) {
         this.selected = null;
       } else if (this.hovered) {
+        if (this.hovered === this.selected) this.selected = null;
         this.snapshot();
         this.graph.removePoint(this.hovered);
         this.hovered = null;
@@ -108,6 +112,7 @@ class GraphEditor {
         changed = this.graph.tryAddSegment(new Segment(this.selected, this.hovered));
       }
       if (!changed) this.undoStack.pop(); // selecting alone is not an edit (a drag re-snapshots)
+      this.tapToDeselect = !changed && this.selected === this.hovered;
       this.selected = this.hovered;
       this.dragging = true;
       this.moved = false;
@@ -142,6 +147,8 @@ class GraphEditor {
 
   pointerUp() {
     if (this.dragging && this.moved) this.app.onWorldEdited(true);
+    else if (this.dragging && this.tapToDeselect) this.selected = null; // tap the selected node again = done
+    this.tapToDeselect = false;
     this.dragging = false;
     this.moved = false;
   }
@@ -170,8 +177,8 @@ class GraphEditor {
     }
     ctx.stroke();
 
-    if (this.tool === 'road' && this.hoveredSegment && !this.dragging) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    if (this.tool !== 'start' && this.hoveredSegment && !this.dragging && !this.touch) {
+      ctx.strokeStyle = this.tool === 'erase' ? THEME.danger : 'rgba(255,255,255,0.8)';
       ctx.lineWidth = 3 * px;
       ctx.beginPath();
       ctx.moveTo(this.hoveredSegment.p1.x, this.hoveredSegment.p1.y);
@@ -198,7 +205,8 @@ class GraphEditor {
       ctx.beginPath();
       ctx.arc(p.x, p.y, r + 2 * px, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = p === this.selected ? '#ffffff' : p === this.hovered ? '#9cc5ff' : THEME.accent;
+      const hot = p === this.hovered && !this.touch;
+      ctx.fillStyle = p === this.selected ? '#ffffff' : hot ? (this.tool === 'erase' ? THEME.danger : '#9cc5ff') : THEME.accent;
       ctx.beginPath();
       ctx.arc(p.x, p.y, r, 0, TAU);
       ctx.fill();

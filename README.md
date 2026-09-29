@@ -22,6 +22,8 @@ npm run train
 
 Press **H** in the app for all shortcuts.
 
+**Works on phones too:** on-screen steering and gas/brake pedals (multi-touch), pinch to zoom, one-finger pan, and a tap-friendly road editor with an Erase tool.
+
 ## How it works
 
 ```mermaid
