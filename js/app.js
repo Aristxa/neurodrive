@@ -219,7 +219,7 @@ class App {
     if (next === d.car.autopilot) return;
     d.car.autopilot = next;
     this._syncAutopilotButton();
-    this.toast(next ? 'Autopilot engaged' : 'Autopilot disengaged');
+    this.toast(next ? 'Autopilot engaged' : 'Autopilot disengaged — you have control');
   }
 
   _stepDrive(dt) {
@@ -492,7 +492,7 @@ class App {
           ? 'Generation 1 is random brains — watch them improve, or load the pretrained brain'
           : 'Click any car to follow it · drag to look around · scroll to zoom';
     } else {
-      hint = this.drive?.car.autopilot ? 'Autopilot engaged — steer or brake to take over' : 'Drive with W A S D / arrows · press P to engage autopilot';
+      hint = this.drive?.car.autopilot ? 'Autopilot engaged — press any driving key (W A S D / arrows) to take over' : 'Drive with W A S D / arrows · press P to engage autopilot';
     }
     const el = $('#hint');
     if (force || el.textContent !== hint) el.textContent = hint;
@@ -827,7 +827,7 @@ class App {
       if (code.startsWith('Arrow') || code === 'Space') e.preventDefault();
       if (code === 'KeyP' && !e.repeat) this.toggleAutopilot();
       else if (code === 'KeyR' && !e.repeat) this._startDrive();
-      else if (this.drive?.car.autopilot && ['ArrowLeft', 'ArrowRight', 'ArrowDown', 'KeyA', 'KeyD', 'KeyS'].includes(code)) {
+      else if (this.drive?.car.autopilot && ['ArrowUp', 'ArrowLeft', 'ArrowRight', 'ArrowDown', 'KeyW', 'KeyA', 'KeyD', 'KeyS'].includes(code)) {
         this.toggleAutopilot(false);
       }
     }
