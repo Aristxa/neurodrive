@@ -46,6 +46,8 @@ class Minimap {
   }
 
   draw(world, viewport, { cars = [], traffic = [], focus = null }) {
+    // Hidden on phones (display: none): a 0x0 canvas makes drawImage throw, which would stop the frame loop.
+    if (!this.canvas.clientWidth || !this.canvas.clientHeight) return;
     if (world.version !== this.worldVersion || this.canvas.clientWidth !== this.map?.w) this._prepare(world);
     const { s, dpr, ox, oy, w, h } = this.map;
     const ctx = this.ctx;
