@@ -328,7 +328,10 @@ class App {
     }
 
     const f = this.focus;
-    if (f && this.settings.followCam && this.mode !== 'build') {
+    // Drive mode always tracks your own car, pausing only while a finger or mouse is actively panning or
+    // pinching: on phones a thumb slipping off the pedals onto the map would otherwise switch follow off for good.
+    const follow = this.mode === 'drive' ? !(this._pan?.moved || this._pinch) : this.settings.followCam;
+    if (f && follow && this.mode !== 'build') {
       const lead = 0.35;
       this.viewport.follow(f.x + Math.cos(f.angle) * f.speed * lead, f.y + Math.sin(f.angle) * f.speed * lead, dt, 3.5);
     }
@@ -814,7 +817,7 @@ class App {
         if (!this._pan.moved && Math.hypot(dx, dy) > (e.pointerType === 'touch' ? 10 : 4)) {
           this._pan.moved = true;
           c.classList.add('panning');
-          if (this.mode !== 'build' && this.settings.followCam) this._setFollow(false);
+          if (this.mode === 'train' && this.settings.followCam) this._setFollow(false);
         }
         if (this._pan.moved) {
           this.viewport.panBy(dx, dy);
