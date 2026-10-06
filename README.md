@@ -1,28 +1,27 @@
-# NeuroDrive — autonomous driving lab
+# NeuroDrive
 
-**Build a city. Then watch a population of neural networks teach themselves to drive it.**
+A self-driving car simulator in plain JavaScript. You draw the roads, and a population of small neural networks learns to drive them through neuro-evolution.
 
-NeuroDrive is a self-driving car simulator written from scratch in vanilla JavaScript, with no frameworks, no ML libraries and no build step. You draw a road network, and the engine turns it into a drivable 3D-ish city. Hundreds of cars, each controlled by its own small neural network, then learn to drive through neuro-evolution. When a network is good enough, you can take it for a test drive and hand it the wheel.
+Live: https://aristxa.github.io/neurodrive/
 
-| Build | Train | Drive |
-|---|---|---|
-| Draw roads with a graph editor. Lanes, borders, crosswalks, buildings and trees are generated procedurally. | 150+ AI cars with ray-cast sensors evolve through a genetic algorithm. Live network, fitness chart, planned trajectory. | Drive yourself through traffic, then press **P** to engage autopilot with the best trained brain. |
+There are three modes:
 
-## Quick start
+- Build: draw a road graph. Lanes, borders, crosswalks, buildings and trees are generated from it.
+- Train: 150+ cars with ray-cast sensors evolve with a genetic algorithm. You can watch the leader's network, the fitness chart and its planned path.
+- Drive: drive through traffic yourself, and press `P` to hand the wheel to the best trained brain.
+
+No frameworks, ML libraries or build step. It also works on phones (touch pedals and steering, pinch zoom, a tap-based road editor).
+
+## Running it
+
+Open `index.html` in a browser, or serve the folder:
 
 ```bash
-# option 1: just open index.html in a browser (no server needed)
-
-# option 2: serve it
-npm start            # http://localhost:8080
-
-# train brains headlessly at full CPU speed (writes js/data/pretrained.js)
-npm run train
+npm start          # http://localhost:8080
+npm run train      # headless training in Node, writes js/data/pretrained.js
 ```
 
-Press **H** in the app for all shortcuts.
-
-**Works on phones too:** on-screen steering and gas/brake pedals (multi-touch), pinch to zoom, one-finger pan, and a tap-friendly road editor with an Erase tool.
+Press `H` in the app for the keyboard shortcuts.
 
 ## How it works
 
@@ -38,30 +37,26 @@ flowchart LR
   CP --> F[Fitness] --> GA[Genetic algorithm] --> NN
 ```
 
-### World generation (`js/world`)
-- Every road segment becomes an **envelope**, a capsule polygon of road width.
-- A **polygon union** (split all intersecting edges, keep the pieces outside every other polygon) produces the road borders that cars collide with and sense.
-- **Buildings** are placed along the union of wider "guide" envelopes, then filtered for overlaps. **Trees** are rejection-sampled near roads and buildings. Both are drawn with a pseudo-3D projection relative to the camera.
-- Generation is seeded, so the same graph always produces the same city.
+### World (`js/world`)
 
-### Car and sensors (`js/sim`)
-- **Kinematic bicycle model**: yaw rate = v / wheelbase · tan(δ), capped by a lateral-grip limit so cars can't turn unrealistically at speed.
-- **9 ray-cast sensors** over a 153° arc report proximity to road borders and traffic.
-- **Traffic** random-walks the road graph in the right-hand lane using a pure-pursuit controller. It brakes for corners and keeps its distance from the car ahead.
+Each road segment is turned into a capsule-shaped polygon ("envelope"). The union of all envelopes gives the road borders, which is what the cars sense and crash into. Buildings are placed along a wider set of envelopes and filtered for overlaps; trees are rejection-sampled around them. Both are drawn with a simple pseudo-3D projection. Generation is seeded, so the same graph always gives the same city.
+
+### Cars (`js/sim`)
+
+The cars use a kinematic bicycle model (yaw rate = v / wheelbase · tan(δ)) with a grip limit, so they can't take sharp turns at full speed. Each car has 9 ray sensors over a 153° arc. Traffic cars wander the graph in the right-hand lane with a pure-pursuit controller, slowing for corners and keeping a gap to the car in front.
 
 ### Learning (`js/ai`)
-- **Network**: `10 → 12 → 8 → 2`, tanh activations (254 parameters). Inputs are 9 sensor readings plus speed. Outputs are continuous throttle and steering.
-- **Fitness**: the number of *unique* road checkpoints reached, plus a small distance tie-breaker, minus a crash penalty. Circling or wiggling in place earns nothing. Cars that stop making progress for 3.5 s are retired.
-- **Genetic algorithm**: elitism (top 4%), tournament selection, **neuron-level crossover** (a neuron's bias and incoming weights are inherited together, which preserves learned features), and gaussian mutation.
-- **Fair comparison**: every generation faces the same seeded traffic scenario, unless "vary traffic" is on (use it for robustness).
+
+- Network: `10 → 12 → 8 → 2` with tanh (254 parameters). Inputs are the 9 sensors plus speed; outputs are throttle and steering.
+- Fitness counts unique checkpoints reached, with a small distance tie-breaker and a crash penalty. Driving in circles earns nothing, and a car that makes no progress for 3.5 s is removed.
+- The GA keeps the top 4%, uses tournament selection, crossover at the neuron level (a neuron's bias and incoming weights stay together) and gaussian mutation.
+- Every generation gets the same seeded traffic so scores are comparable. "Vary traffic" turns that off for more robust brains.
 
 ### Performance
-- A **uniform spatial hash** over border segments and checkpoints means each car only tests the geometry near it, instead of all of it.
-- Hot paths (ray casting, collision) are allocation-free and work on flat typed arrays.
-- A **fixed 60 Hz timestep** with an accumulator and CPU budget runs up to 30× real time without the "spiral of death" (falling further behind every frame).
-- The engine is DOM-free, so `tools/train.js` runs the exact same code in Node. Training 200 cars for 80 generations takes about 2–3 minutes.
 
-## Project structure
+Border segments and checkpoints sit in a uniform spatial hash, so each car only checks nearby geometry. Ray casting and collision work on typed arrays without allocating. The sim runs on a fixed 60 Hz step with a CPU budget per frame, which lets training run up to 30× real time without falling behind. The engine doesn't touch the DOM, so `tools/train.js` runs the same code in Node: 200 cars for 80 generations takes 2–3 minutes.
+
+## Layout
 
 ```
 index.html            app shell
@@ -70,16 +65,17 @@ js/core/              math, geometry (union, envelopes), spatial hash, graph, th
 js/world/             world generator, buildings & trees, preset worlds
 js/ai/                neural network, genetic algorithm
 js/sim/               sensors, car physics, traffic, training loop
-js/render/            camera, network visualizer, fitness chart, minimap
-js/editor/            road graph editor (undo, junction splitting, start placement)
-js/ui/storage.js      persistence + JSON import/export
+js/render/            camera, network view, fitness chart, minimap
+js/editor/            road editor (undo, junction splitting, start placement)
+js/ui/storage.js      saving + JSON import/export
 js/app.js             modes, input, render loop, panels
 js/data/pretrained.js brains trained by tools/train.js
 tools/train.js        headless trainer (Node)
 ```
 
-## Ideas for next steps
-- Route planning (A* on the road graph) with a "go to destination" objective
-- Traffic lights and right-of-way at intersections
-- Web Worker training so evolution runs off the main thread
-- Replace the GA with PPO or CMA-ES and compare learning curves
+## Next
+
+- Route planning (A* on the road graph) with a destination to reach
+- Traffic lights and right-of-way at junctions
+- Training in a Web Worker
+- Try PPO or CMA-ES instead of the GA and compare the learning curves
